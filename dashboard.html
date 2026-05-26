@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RK Infocom | FTTH Operations Portal & CRM</title>
+    <meta name="description" content="Production-Grade FTTH Operations Control Center and Customer Relationship Management portal for RK Infocom.">
+    <!-- Google Fonts Outfit & FontAwesome Icons -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="dashboard.css">
+</head>
+<body>
+    <!-- PORTAL LOGIN OVERLAY -->
+    <div class="login-overlay active" id="loginOverlay">
+        <div class="login-box glass-card">
+            <div class="login-brand">
+                <img src="public/logo.jpg" alt="R K Infocom Logo" class="login-logo">
+                <div class="brand-text">
+                    <h2>RK Infocom</h2>
+                    <span>Portal Authentication</span>
+                </div>
+            </div>
+            <form id="portalLoginForm" class="login-form">
+                <div class="form-group" style="margin-bottom: 1rem;">
+                    <label for="login-username" style="color: var(--text-secondary); font-size: 0.8rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; display: block; margin-bottom: 6px;">Administrator Username</label>
+                    <input type="text" id="login-username" placeholder="Enter username" required autocomplete="username" style="background: rgba(0, 0, 0, 0.25); border: 1px solid var(--card-border); border-radius: var(--radius-md); color: var(--text-primary); padding: 12px 16px; width: 100%; outline: none;">
+                </div>
+                <div class="form-group" style="margin-bottom: 1.5rem;">
+                    <label for="login-password" style="color: var(--text-secondary); font-size: 0.8rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; display: block; margin-bottom: 6px;">Security Password</label>
+                    <input type="password" id="login-password" placeholder="Enter password" required autocomplete="current-password" style="background: rgba(0, 0, 0, 0.25); border: 1px solid var(--card-border); border-radius: var(--radius-md); color: var(--text-primary); padding: 12px 16px; width: 100%; outline: none;">
+                </div>
+                <button type="submit" class="btn btn-glowing-accent" style="width: 100%; display: flex; justify-content: center; padding: 14px; border-radius: 30px;">Unlock Operations Telemetry</button>
+            </form>
+            <div id="login-error-msg" class="login-error-msg" style="color: #ff1744; font-size: 0.85rem; font-weight: 700; margin-top: 1rem; text-align: center; display: none;"></div>
+        </div>
+    </div>
+
+    <div class="dashboard-wrapper">
+        <!-- Sidebar Navigation -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-brand">
+                <img src="public/logo.jpg" alt="R K Infocom Logo" class="sidebar-logo">
+                <div class="brand-text">
+                    <h2>RK Infocom</h2>
+                    <span>Operations Control</span>
+                </div>
+            </div>
+            <nav class="sidebar-menu">
+                <a href="#" class="menu-item active" data-tab="overview">
+                    <span class="menu-icon">📊</span>
+                    <span class="menu-label">Overview</span>
+                </a>
+                <a href="#" class="menu-item" data-tab="leads">
+                    <span class="menu-icon">👥</span>
+                    <span class="menu-label">Connection Leads</span>
+                    <span class="badge-count" id="badge-leads-count">0</span>
+                </a>
+                <a href="#" class="menu-item" data-tab="faults">
+                    <span class="menu-icon">🚨</span>
+                    <span class="menu-label">FTTH Faults</span>
+                    <span class="badge-count warning" id="badge-faults-count">0</span>
+                </a>
+                <a href="#" class="menu-item" data-tab="directory">
+                    <span class="menu-icon">📇</span>
+                    <span class="menu-label">Customer CRM</span>
+                </a>
+            </nav>
+            <div class="sidebar-footer">
+                <a href="index.html" class="back-home-btn">
+                    <span>⬅️</span> Back to Website
+                </a>
+            </div>
+        </aside>
+
+        <!-- Main Workspace -->
+        <main class="main-content">
+            <!-- Header bar -->
+            <header class="main-header">
+                <div class="header-left">
+                    <div class="menu-toggle-btn" id="menuToggleBtn">
+                        <span></span>
+                        <span></span>
+                        <span></span>
+                    </div>
+                    <div class="header-title">
+                        <h1 id="page-title">Operations Telemetry</h1>
+                        <p id="page-subtitle">Real-time status of BSNL FTTH network activities</p>
+                    </div>
+                </div>
+                <div class="header-right">
+                    <div class="live-indicator">
+                        <span class="pulse-dot"></span>
+                        <span>LIVE SYNC</span>
+                    </div>
+                    <button class="btn btn-glowing-accent" id="openModalBtn">
+                        <span>➕</span> Log Ticket Manual
+                    </button>
+                </div>
+            </header>
+
+            <!-- Container for tabs -->
+            <div class="content-container">
+
+                <!-- 1. OVERVIEW TAB -->
+                <section class="tab-pane active" id="overview-tab">
+                    <!-- Metric Card Grid -->
+                    <div class="metrics-grid">
+                        <div class="metric-card glass-card purple-glow">
+                            <div class="metric-header">
+                                <span class="metric-icon">👥</span>
+                                <span class="metric-trend positive">Leads Portal</span>
+                            </div>
+                            <h3 class="metric-value" id="stat-total-leads">0</h3>
+                            <p class="metric-label">WhatsApp Connection Requests</p>
+                            <div class="metric-footer">
+                                <span class="open-label" id="stat-open-leads">0 Open</span>
+                                <span class="sep">•</span>
+                                <span class="resolved-label" id="stat-resolved-leads">0 Resolved</span>
+                            </div>
+                        </div>
+
+                        <div class="metric-card glass-card blue-glow">
+                            <div class="metric-header">
+                                <span class="metric-icon">🚨</span>
+                                <span class="metric-trend danger">Network faults</span>
+                            </div>
+                            <h3 class="metric-value" id="stat-total-faults">0</h3>
+                            <p class="metric-label">WhatsApp FTTH Fault Tickets</p>
+                            <div class="metric-footer">
+                                <span class="open-label danger-text" id="stat-open-faults">0 Open</span>
+                                <span class="sep">•</span>
+                                <span class="resolved-label" id="stat-resolved-faults">0 Resolved</span>
+                            </div>
+                        </div>
+
+                        <div class="metric-card glass-card emerald-glow">
+                            <div class="metric-header">
+                                <span class="metric-icon">⚡</span>
+                                <span class="metric-trend positive">Performance</span>
+                            </div>
+                            <h3 class="metric-value" id="stat-resolution-rate">0%</h3>
+                            <p class="metric-label">Average Resolution Rate</p>
+                            <div class="metric-progress-bar">
+                                <div class="progress" id="stat-progress-bar" style="width: 0%"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Telemetry charts / Visual panels -->
+                    <div class="dashboard-panels">
+                        <div class="panel-left glass-card">
+                            <div class="panel-header">
+                                <h3>Network Fault Categories</h3>
+                                <p>Proportion of issues reported via WhatsApp Flows</p>
+                            </div>
+                            <div class="category-breakdown-container">
+                                <div class="category-chart-simulation" id="categoryChartList">
+                                    <!-- Dynamic elements inserted by JS -->
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="panel-right glass-card">
+                            <div class="panel-header">
+                                <h3>Recent System Logs</h3>
+                                <p>Latest ticket operations and resolution actions</p>
+                            </div>
+                            <div class="activities-log" id="recentActivitiesList">
+                                <!-- Dynamic logs -->
+                                <div class="empty-log-state">
+                                    <span>⏳</span>
+                                    <p>Gathering system events...</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- 2. CRM LEADS TAB -->
+                <section class="tab-pane" id="leads-tab">
+                    <!-- Filters Toolbar -->
+                    <div class="toolbar glass-card">
+                        <div class="search-box">
+                            <span class="search-icon">🔍</span>
+                            <input type="text" id="search-leads" placeholder="Search by name, phone or address...">
+                        </div>
+                        <div class="filter-options">
+                            <button class="filter-pill active" data-status-filter="">All Status</button>
+                            <button class="filter-pill" data-status-filter="OPEN">Open Leads</button>
+                            <button class="filter-pill" data-status-filter="RESOLVED">Resolved Leads</button>
+                        </div>
+                        <div class="layout-switcher">
+                            <button class="layout-btn active" id="leads-grid-btn" title="Grid View">Grid 📐</button>
+                            <button class="layout-btn" id="leads-list-btn" title="List View">List 📋</button>
+                        </div>
+                    </div>
+
+                    <!-- Leads Grid -->
+                    <div class="cards-grid" id="leads-container">
+                        <!-- Leads injected here -->
+                    </div>
+                </section>
+
+                <!-- 3. FTTH FAULTS TAB -->
+                <section class="tab-pane" id="faults-tab">
+                    <!-- Filters Toolbar -->
+                    <div class="toolbar glass-card">
+                        <div class="search-box">
+                            <span class="search-icon">🔍</span>
+                            <input type="text" id="search-faults" placeholder="Search by customer name, FTTH, technician...">
+                        </div>
+                        <div class="filter-group">
+                            <select id="filter-fault-category" class="premium-select">
+                                <option value="">All Categories</option>
+                                <option value="Bill Issue">Bill Issue</option>
+                                <option value="Internet speed is low">Low Speed</option>
+                                <option value="ONU/Router is off">ONU/Router is off</option>
+                                <option value="LOS Red">LOS Red</option>
+                                <option value="PON blinking">PON blinking</option>
+                                <option value="Other issue">Other Issue</option>
+                            </select>
+                            <div class="filter-options">
+                                <button class="filter-pill active" data-status-filter-fault="">All Status</button>
+                                <button class="filter-pill" data-status-filter-fault="OPEN">Open Faults</button>
+                                <button class="filter-pill" data-status-filter-fault="RESOLVED">Resolved Faults</button>
+                            </div>
+                            <div class="layout-switcher">
+                                <button class="layout-btn active" id="faults-grid-btn" title="Grid View">Grid 📐</button>
+                                <button class="layout-btn" id="faults-list-btn" title="List View">List 📋</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Faults List -->
+                    <div class="cards-grid" id="faults-container">
+                        <!-- Faults injected here -->
+                    </div>
+                </section>
+
+                <!-- 4. CUSTOMER DIRECTORY TAB -->
+                <section class="tab-pane" id="directory-tab">
+                    <!-- Toolbar -->
+                    <div class="toolbar glass-card">
+                        <div class="search-box">
+                            <span class="search-icon">🔍</span>
+                            <input type="text" id="search-customers" placeholder="Search database by customer name, FTTH, phone...">
+                        </div>
+                        <div class="sync-info">
+                            <span>Synced Excel database record counts: </span>
+                            <strong id="customer-total-badge" class="badge-count inline-badge">...</strong>
+                        </div>
+                    </div>
+
+                    <!-- Customer Database table -->
+                    <div class="glass-card table-wrapper">
+                        <table class="crm-table">
+                            <thead>
+                                <tr>
+                                    <th>Customer Profile</th>
+                                    <th>FTTH / Service ID</th>
+                                    <th>Primary Contact</th>
+                                    <th>Installation Address</th>
+                                    <th>Designated Billing Tech</th>
+                                    <th>Designated Line Tech</th>
+                                </tr>
+                            </thead>
+                            <tbody id="customers-table-body">
+                                <!-- Dynamic rows -->
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+
+            </div>
+        </main>
+    </div>
+
+    <!-- TOAST NOTIFICATION CONTAINER -->
+    <div class="toast-container" id="toastContainer"></div>
+
+    <!-- QUICK LOG MODAL -->
+    <div class="modal-overlay" id="ticketModal">
+        <div class="modal-container glass-card">
+            <div class="modal-header">
+                <h3>Log Manual Operations Ticket</h3>
+                <button class="close-btn" id="closeModalBtn">&times;</button>
+            </div>
+            <form id="manualTicketForm" class="modal-form">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="form-cust-name">Customer Name *</label>
+                        <input type="text" id="form-cust-name" placeholder="Enter customer full name" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="form-mobile">Mobile Number *</label>
+                        <input type="tel" id="form-mobile" placeholder="e.g. 919876543210" required>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="form-type">Log Type *</label>
+                        <select id="form-type" class="premium-select" required>
+                            <option value="new_connection">New Connection Lead</option>
+                            <option value="fault">FTTH Fault Ticket</option>
+                        </select>
+                    </div>
+                    <div class="form-group" id="ftth-group" style="display: none;">
+                        <label for="form-ftth">FTTH Number *</label>
+                        <input type="text" id="form-ftth" placeholder="e.g. 08562-243210">
+                    </div>
+                </div>
+
+                <div class="form-group" id="fault-category-group" style="display: none;">
+                    <label for="form-category">Fault Category *</label>
+                    <select id="form-category" class="premium-select">
+                        <option value="Bill Issue">Bill Issue</option>
+                        <option value="Internet speed is low">Internet speed is low</option>
+                        <option value="ONU/Router is off">ONU/Router is off</option>
+                        <option value="LOS Red">LOS Red</option>
+                        <option value="PON blinking">PON blinking</option>
+                        <option value="Other issue" selected>Other issue</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="form-address">Address</label>
+                    <textarea id="form-address" rows="2" placeholder="Customer physical address details"></textarea>
+                </div>
+
+                <div class="form-group">
+                    <label for="form-desc">Description / Notes</label>
+                    <textarea id="form-desc" rows="3" placeholder="Operations details or technician dispatch guidelines"></textarea>
+                </div>
+
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary-modal" id="cancelFormBtn">Cancel</button>
+                    <button type="submit" class="btn btn-glowing-accent">Submit Ticket</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="dashboard.js"></script>
+</body>
+</html>
