@@ -6,6 +6,7 @@ document.addEventListener('DOMContentLoaded', () => {
         currentTab: 'overview',
         leads: [],
         faults: [],
+        bsnlFaults: [],
         customers: [],
         stats: null,
         filters: {
@@ -14,6 +15,8 @@ document.addEventListener('DOMContentLoaded', () => {
             faultsSearch: '',
             faultsStatus: '',
             faultsCategory: '',
+            bsnlFaultsSearch: '',
+            bsnlFaultsStatus: '',
             customersSearch: ''
         },
         views: {
@@ -45,6 +48,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Telemetry Badges
         badgeLeads: document.getElementById('badge-leads-count'),
         badgeFaults: document.getElementById('badge-faults-count'),
+        badgeBsnlFaults: document.getElementById('badge-bsnl-faults-count'),
         
         // Overview Stats
         statTotalLeads: document.getElementById('stat-total-leads'),
@@ -74,6 +78,11 @@ document.addEventListener('DOMContentLoaded', () => {
         faultsContainer: document.getElementById('faults-container'),
         faultsGridBtn: document.getElementById('faults-grid-btn'),
         faultsListBtn: document.getElementById('faults-list-btn'),
+        
+        // BSNL Faults elements
+        searchBsnlFaults: document.getElementById('search-bsnl-faults'),
+        bsnlFaultsPills: document.querySelectorAll('[data-status-filter-bsnl]'),
+        bsnlFaultsContainer: document.getElementById('bsnl-faults-container'),
         
         // Directory elements
         searchCustomers: document.getElementById('search-customers'),
@@ -105,12 +114,29 @@ document.addEventListener('DOMContentLoaded', () => {
         };
     }
 
+    const BASE_URL = (() => {
+        const savedUrl = localStorage.getItem('portal_api_url');
+        if (savedUrl) return savedUrl;
+
+        const hostname = window.location.hostname;
+        const port = window.location.port;
+        const protocol = window.location.protocol;
+
+        if (protocol === 'file:') {
+            return 'http://localhost:3000';
+        }
+        if ((hostname.includes('localhost') || hostname.includes('127.0.0.1')) && port !== '3000') {
+            return 'http://localhost:3000';
+        }
+        return '';
+    })();
+
     // ----------------------------------
     // API CALLS
     // ----------------------------------
     const API = {
         async login(username, password) {
-            const res = await fetch('/api/login', {
+            const res = await fetch(BASE_URL + '/api/login', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ username, password })
@@ -122,7 +148,7 @@ document.addEventListener('DOMContentLoaded', () => {
             return await res.json();
         },
         async getStats() {
-            const res = await fetch('/api/stats', { headers: getAuthHeaders() });
+            const res = await fetch(BASE_URL + '/api/stats', { headers: getAuthHeaders() });
             if (res.status === 401) {
                 handleSessionExpiry();
                 throw new Error("Session expired");
@@ -132,7 +158,7 @@ document.addEventListener('DOMContentLoaded', () => {
         },
         async getTickets(type, status = '', search = '') {
             const query = new URLSearchParams({ type, status, search });
-            const res = await fetch(`/api/tickets?${query}`, { headers: getAuthHeaders() });
+            const res = await fetch(BASE_URL + `/api/tickets?${query}`, { headers: getAuthHeaders() });
             if (res.status === 401) {
                 handleSessionExpiry();
                 throw new Error("Session expired");
@@ -142,7 +168,7 @@ document.addEventListener('DOMContentLoaded', () => {
         },
         async getCustomers(search = '') {
             const query = new URLSearchParams({ search });
-            const res = await fetch(`/api/customers?${query}`, { headers: getAuthHeaders() });
+            const res = await fetch(BASE_URL + `/api/customers?${query}`, { headers: getAuthHeaders() });
             if (res.status === 401) {
                 handleSessionExpiry();
                 throw new Error("Session expired");
@@ -151,7 +177,7 @@ document.addEventListener('DOMContentLoaded', () => {
             return await res.json();
         },
         async resolveTicket(id) {
-            const res = await fetch(`/api/tickets/${id}/resolve`, {
+            const res = await fetch(BASE_URL + `/api/tickets/${id}/resolve`, {
                 method: 'POST',
                 headers: getAuthHeaders(),
                 body: JSON.stringify({ resolvedBy: "Operations Web Portal" })
@@ -167,7 +193,7 @@ document.addEventListener('DOMContentLoaded', () => {
             return await res.json();
         },
         async createTicket(ticketData) {
-            const res = await fetch('/api/tickets/create', {
+            const res = await fetch(BASE_URL + '/api/tickets/create', {
                 method: 'POST',
                 headers: getAuthHeaders(),
                 body: JSON.stringify(ticketData)
@@ -179,6 +205,32 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!res.ok) {
                 const errData = await res.json();
                 throw new Error(errData.error || "Failed to log operations ticket");
+            }
+            return await res.json();
+        },
+        async getBsnlTickets(status = '', search = '') {
+            const query = new URLSearchParams({ status, search });
+            const res = await fetch(BASE_URL + `/api/bsnl-tickets?${query}`, { headers: getAuthHeaders() });
+            if (res.status === 401) {
+                handleSessionExpiry();
+                throw new Error("Session expired");
+            }
+            if (!res.ok) throw new Error("Failed to fetch BSNL Online tickets");
+            return await res.json();
+        },
+        async resolveBsnlTicket(requestNo) {
+            const res = await fetch(BASE_URL + `/api/bsnl-tickets/${requestNo}/resolve`, {
+                method: 'POST',
+                headers: getAuthHeaders(),
+                body: JSON.stringify({ resolvedBy: "Operations Web Portal" })
+            });
+            if (res.status === 401) {
+                handleSessionExpiry();
+                throw new Error("Session expired");
+            }
+            if (!res.ok) {
+                const errData = await res.json();
+                throw new Error(errData.error || "Failed to resolve BSNL ticket");
             }
             return await res.json();
         }
@@ -209,17 +261,20 @@ document.addEventListener('DOMContentLoaded', () => {
             
             showToast("Welcome back! Unlocking operations portal...", "success");
             
-            // Unlock Animation
+            // Unlock Animation immediately so user enters dashboard without obstruction
             elements.loginOverlay.classList.remove('active');
             setTimeout(() => {
                 elements.loginOverlay.style.display = 'none';
-            }, 500);
+            }, 400);
             
-            // Initialize Dashboard load
-            await reloadData();
+            // Initialize Dashboard load safely in background without bouncing back to login
+            reloadData().catch(err => {
+                console.error("Telemetry sync error after login:", err);
+                showToast("Connected to portal. Syncing live telemetry...", "info");
+            });
         } catch (err) {
             console.error(err);
-            elements.loginErrorMsg.innerText = err.message;
+            elements.loginErrorMsg.innerText = err.message || "Invalid credentials or server unavailable.";
             elements.loginErrorMsg.style.display = 'block';
             
             // Shake Animation
@@ -287,9 +342,9 @@ document.addEventListener('DOMContentLoaded', () => {
         elements.statOpenFaults.innerText = `${s.openFaults} Open`;
         elements.statResolvedFaults.innerText = `${s.resolvedFaults} Resolved`;
         
-        // Calculate resolution rate
-        const total = s.totalLeads + s.totalFaults;
-        const resolved = s.resolvedLeads + s.resolvedFaults;
+        // Calculate resolution rate (including BSNL faults)
+        const total = s.totalLeads + s.totalFaults + (s.totalBsnlFaults || 0);
+        const resolved = s.resolvedLeads + s.resolvedFaults + (s.resolvedBsnlFaults || 0);
         const rate = total > 0 ? Math.round((resolved / total) * 100) : 0;
         
         elements.statResolutionRate.innerText = `${rate}%`;
@@ -301,6 +356,11 @@ document.addEventListener('DOMContentLoaded', () => {
         
         elements.badgeFaults.innerText = s.openFaults;
         elements.badgeFaults.style.display = s.openFaults > 0 ? 'inline-block' : 'none';
+
+        if (elements.badgeBsnlFaults) {
+            elements.badgeBsnlFaults.innerText = s.openBsnlFaults || 0;
+            elements.badgeBsnlFaults.style.display = (s.openBsnlFaults && s.openBsnlFaults > 0) ? 'inline-block' : 'none';
+        }
 
         // Render Issue categories bar charts
         renderCategoryCharts(s.byCategory, s.totalFaults);
@@ -352,10 +412,13 @@ document.addEventListener('DOMContentLoaded', () => {
     function renderRecentActivities() {
         elements.recentActivitiesList.innerHTML = '';
         
+        const leads = Array.isArray(state.leads) ? state.leads : [];
+        const faults = Array.isArray(state.faults) ? state.faults : [];
+
         // Merge and sort all items by date
         const allItems = [
-            ...state.leads.map(l => ({ ...l, actType: 'lead' })),
-            ...state.faults.map(f => ({ ...f, actType: 'fault' }))
+            ...leads.map(l => ({ ...l, actType: 'lead' })),
+            ...faults.map(f => ({ ...f, actType: 'fault' }))
         ];
         
         allItems.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
@@ -381,11 +444,11 @@ document.addEventListener('DOMContentLoaded', () => {
             
             if (item.actType === 'lead') {
                 icon = '👥';
-                title = `New Connection Lead: <strong>${item.customer_name}</strong>`;
+                title = `New Connection Lead #L-${item.lead_id || 'N/A'}: <strong>${item.customer_name}</strong>`;
                 detail = `Lead status is currently <strong>${item.status}</strong>. Location: ${item.address || 'N/A'}`;
             } else {
                 icon = item.status === 'RESOLVED' ? '✅' : '🚨';
-                title = `Fault #${item.id} (${item.issue_type}): <strong>${item.customer_name}</strong>`;
+                title = `Fault #F-${item.fault_id || 'N/A'} (${item.issue_type}): <strong>${item.customer_name}</strong>`;
                 detail = `Assigned to: ${item.technician_name} (${item.technician_mobile}). Status: <strong>${item.status}</strong>`;
             }
             
@@ -434,7 +497,7 @@ document.addEventListener('DOMContentLoaded', () => {
             card.innerHTML = `
                 <div class="card-top">
                     <div class="ticket-meta">
-                        <span class="ticket-id">LEAD #${lead.id}</span>
+                        <span class="ticket-id">LEAD #${lead.lead_id || 'N/A'}</span>
                         <span class="ticket-date">${formatDate(lead.created_at)}</span>
                     </div>
                     <span class="status-tag ${lead.status.toLowerCase()}">${lead.status}</span>
@@ -500,7 +563,7 @@ document.addEventListener('DOMContentLoaded', () => {
             card.innerHTML = `
                 <div class="card-top">
                     <div class="ticket-meta">
-                        <span class="ticket-id">FAULT #${fault.id}</span>
+                        <span class="ticket-id">FAULT #${fault.fault_id || 'N/A'}</span>
                         <span class="ticket-date">${formatDate(fault.created_at)}</span>
                     </div>
                     <span class="status-tag ${fault.status.toLowerCase()}">${fault.status}</span>
@@ -571,6 +634,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 </td>
                 <td>
                     <span style="font-weight: 500;">${cust.mobile_no || 'N/A'}</span>
+                </td>
+                <td>
+                    <span style="font-size: 0.85rem; color: var(--text-secondary);">${cust.customer_email || 'N/A'}</span>
+                </td>
+                <td>
+                    <code style="font-family: monospace; font-size: 0.85rem; color: #29b6f6;">${cust.olt_ip || 'N/A'}</code>
                 </td>
                 <td>
                     <div class="tbl-address" title="${cust.address}">${cust.address || 'N/A'}</div>
@@ -674,10 +743,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function loadLeads() {
         try {
-            state.leads = await API.getTickets('lead', state.filters.leadsStatus, state.filters.leadsSearch);
+            const data = await API.getTickets('lead', state.filters.leadsStatus, state.filters.leadsSearch);
+            state.leads = Array.isArray(data) ? data : [];
             renderLeads();
         } catch (err) {
-            console.error(err);
+            console.error("loadLeads error:", err);
+            if (!Array.isArray(state.leads)) state.leads = [];
+            renderLeads();
         }
     }
 
@@ -685,22 +757,115 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             // Apply category filter and search
             let rawFaults = await API.getTickets('fault', state.filters.faultsStatus, state.filters.faultsSearch);
+            if (!Array.isArray(rawFaults)) rawFaults = [];
             if (state.filters.faultsCategory) {
                 rawFaults = rawFaults.filter(f => f.issue_type === state.filters.faultsCategory);
             }
             state.faults = rawFaults;
             renderFaults();
         } catch (err) {
-            console.error(err);
+            console.error("loadFaults error:", err);
+            if (!Array.isArray(state.faults)) state.faults = [];
+            renderFaults();
         }
     }
 
     async function loadCustomers() {
         try {
-            state.customers = await API.getCustomers(state.filters.customersSearch);
+            const data = await API.getCustomers(state.filters.customersSearch);
+            state.customers = Array.isArray(data) ? data : [];
             renderCustomers();
         } catch (err) {
+            console.error("loadCustomers error:", err);
+            if (!Array.isArray(state.customers)) state.customers = [];
+            renderCustomers();
+        }
+    }
+
+    async function loadBsnlFaults() {
+        try {
+            const data = await API.getBsnlTickets(state.filters.bsnlFaultsStatus, state.filters.bsnlFaultsSearch);
+            state.bsnlFaults = Array.isArray(data) ? data : [];
+            renderBsnlFaults();
+        } catch (err) {
+            console.error("loadBsnlFaults error:", err);
+            if (!Array.isArray(state.bsnlFaults)) state.bsnlFaults = [];
+            renderBsnlFaults();
+        }
+    }
+
+    function renderBsnlFaults() {
+        if (!elements.bsnlFaultsContainer) return;
+        elements.bsnlFaultsContainer.innerHTML = '';
+
+        if (state.bsnlFaults.length === 0) {
+            elements.bsnlFaultsContainer.innerHTML = `
+                <div class="glass-card text-center" style="grid-column: 1/-1; padding: 4rem 2rem; color: var(--text-muted);">
+                    <span style="font-size: 3rem; display: block; margin-bottom: 1rem;">🌐</span>
+                    <h3>No online faults found</h3>
+                    <p>BSNL DSCM Portal has no active matching faults.</p>
+                </div>
+            `;
+            return;
+        }
+
+        state.bsnlFaults.forEach(ticket => {
+            const card = document.createElement('div');
+            card.className = `metric-card glass-card ticket-card ${ticket.status.toLowerCase()}-status`;
+            
+            const isResolved = ['RESOLVED', 'COMPLETED', 'ARCHIVED'].includes(ticket.status.toUpperCase());
+            
+            card.innerHTML = `
+                <div class="card-top">
+                    <div class="ticket-meta">
+                        <span class="ticket-id">PORTAL #${ticket.request_no}</span>
+                        <span class="ticket-date">${formatDate(ticket.create_date)}</span>
+                    </div>
+                    <span class="status-tag ${ticket.status.toLowerCase()}">${ticket.status}</span>
+                </div>
+                <div class="customer-name-block">
+                    <h4>${ticket.customer_name}</h4>
+                    <p class="customer-phone">📞 Phone: ${ticket.phone || 'N/A'}</p>
+                </div>
+                <div class="details-list">
+                    <div class="detail-row">
+                        <span class="detail-icon">🏢</span>
+                        <span class="detail-content"><strong>Team:</strong> ${ticket.team_name || 'N/A'}</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="detail-icon">📍</span>
+                        <span class="detail-content"><strong>Address:</strong> ${ticket.address || 'N/A'}</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="detail-icon">👮</span>
+                        <span class="detail-content"><strong>Agent:</strong> ${ticket.handler_name || 'N/A'}</span>
+                    </div>
+                </div>
+                <div class="card-actions">
+                    ${!isResolved ? `<button class="btn-resolve" data-resolve-bsnl-id="${ticket.request_no}">Mark Resolved</button>` : `<span class="emerald-text" style="font-size:0.85rem; font-weight:700; color:var(--success);">🟢 RESOLVED</span>`}
+                </div>
+            `;
+            elements.bsnlFaultsContainer.appendChild(card);
+        });
+
+        // Add action listeners to resolve buttons
+        elements.bsnlFaultsContainer.querySelectorAll('[data-resolve-bsnl-id]').forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+                const requestNo = e.target.getAttribute('data-resolve-bsnl-id');
+                await handleBsnlTicketResolution(requestNo);
+            });
+        });
+    }
+
+    async function handleBsnlTicketResolution(requestNo) {
+        try {
+            showToast(`Initiating BSNL ticket #${requestNo} resolution...`, 'info');
+            await API.resolveBsnlTicket(requestNo);
+            showToast(`Success! BSNL Ticket #${requestNo} resolved.`, 'success');
+            await reloadData();
+        } catch (err) {
             console.error(err);
+            showToast(err.message, 'error');
         }
     }
 
@@ -708,6 +873,7 @@ document.addEventListener('DOMContentLoaded', () => {
         await loadStats();
         await loadLeads();
         await loadFaults();
+        await loadBsnlFaults();
         await loadCustomers();
         renderRecentActivities();
     }
@@ -736,8 +902,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const titles = {
             overview: { title: "Operations Telemetry", sub: "Real-time status of BSNL FTTH network activities" },
             leads: { title: "Connection Leads CRM", sub: "New subscriber leads submitted via WhatsApp Business Flow" },
-            faults: { title: "FTTH Support Tickets", sub: "Open complaints and network disruptions reported by clients" },
-            directory: { title: "BSNL Customer CRM Directory", sub: "Master record list loaded from Excel Database logs" }
+            faults: { title: "Offline Support Tickets", sub: "Open complaints and network disruptions reported by clients" },
+            directory: { title: "BSNL Customer CRM Directory", sub: "Master record list loaded from Excel Database logs" },
+            'bsnl-faults': { title: "BSNL Pending Fault Orders", sub: "Real-time monitor of BSNL WSC pending fault tickets" }
         };
         
         elements.pageTitle.innerText = titles[tabId].title;
@@ -775,6 +942,20 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Auth Form Submit Listener
     elements.portalLoginForm.addEventListener('submit', handleLoginSubmit);
+
+    // Toggle Password Visibility
+    const togglePasswordBtn = document.getElementById('togglePasswordBtn');
+    if (togglePasswordBtn) {
+        togglePasswordBtn.addEventListener('click', () => {
+            if (elements.loginPassword.type === 'password') {
+                elements.loginPassword.type = 'text';
+                togglePasswordBtn.innerText = '🙈';
+            } else {
+                elements.loginPassword.type = 'password';
+                togglePasswordBtn.innerText = '👁️';
+            }
+        });
+    }
 
     // Tab switching
     elements.menuItems.forEach(item => {
@@ -817,6 +998,21 @@ document.addEventListener('DOMContentLoaded', () => {
     elements.searchCustomers.addEventListener('input', (e) => {
         state.filters.customersSearch = e.target.value.trim();
         loadCustomers();
+    });
+
+    elements.searchBsnlFaults.addEventListener('input', (e) => {
+        state.filters.bsnlFaultsSearch = e.target.value.trim();
+        loadBsnlFaults();
+    });
+
+    // Status Filter Pills (BSNL Faults)
+    elements.bsnlFaultsPills.forEach(pill => {
+        pill.addEventListener('click', (e) => {
+            elements.bsnlFaultsPills.forEach(p => p.classList.remove('active'));
+            e.target.classList.add('active');
+            state.filters.bsnlFaultsStatus = e.target.getAttribute('data-status-filter-bsnl');
+            loadBsnlFaults();
+        });
     });
 
     // Status Filter Pills (Leads)
@@ -915,10 +1111,13 @@ document.addEventListener('DOMContentLoaded', () => {
         if (state.currentTab === 'overview') {
             loadLeads();
             loadFaults();
+            loadBsnlFaults();
         } else if (state.currentTab === 'leads') {
             loadLeads();
         } else if (state.currentTab === 'faults') {
             loadFaults();
+        } else if (state.currentTab === 'bsnl-faults') {
+            loadBsnlFaults();
         }
     }, 30000);
 });
