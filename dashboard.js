@@ -135,17 +135,30 @@ document.addEventListener('DOMContentLoaded', () => {
     // API CALLS
     // ----------------------------------
     const API = {
-        async login(username, password) {
-            const res = await fetch(BASE_URL + '/api/login', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ username, password })
-            });
-            if (!res.ok) {
-                const err = await res.json();
-                throw new Error(err.error || "Authentication failed");
+        async safeParse(res) {
+            const text = await res.text();
+            try {
+                return JSON.parse(text);
+            } catch (e) {
+                return { error: text || `HTTP ${res.status}: ${res.statusText}` };
             }
-            return await res.json();
+        },
+        async login(username, password) {
+            let res;
+            try {
+                res = await fetch(BASE_URL + '/api/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password })
+                });
+            } catch (networkErr) {
+                throw new Error("Unable to reach authentication server. Please check connection.");
+            }
+            const data = await this.safeParse(res);
+            if (!res.ok) {
+                throw new Error(data.error || data.message || `Authentication failed (${res.status})`);
+            }
+            return data;
         },
         async getStats() {
             const res = await fetch(BASE_URL + '/api/stats', { headers: getAuthHeaders() });
@@ -154,7 +167,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 throw new Error("Session expired");
             }
             if (!res.ok) throw new Error("Failed to fetch dashboard metrics");
-            return await res.json();
+            return await this.safeParse(res);
         },
         async getTickets(type, status = '', search = '') {
             const query = new URLSearchParams({ type, status, search });
@@ -164,7 +177,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 throw new Error("Session expired");
             }
             if (!res.ok) throw new Error(`Failed to fetch ${type} tickets`);
-            return await res.json();
+            return await this.safeParse(res);
         },
         async getCustomers(search = '') {
             const query = new URLSearchParams({ search });
@@ -174,7 +187,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 throw new Error("Session expired");
             }
             if (!res.ok) throw new Error("Failed to fetch customer directory");
-            return await res.json();
+            return await this.safeParse(res);
         },
         async resolveTicket(id) {
             const res = await fetch(BASE_URL + `/api/tickets/${id}/resolve`, {
@@ -186,11 +199,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 handleSessionExpiry();
                 throw new Error("Session expired");
             }
+            const errData = await this.safeParse(res);
             if (!res.ok) {
-                const errData = await res.json();
                 throw new Error(errData.error || "Failed to resolve ticket");
             }
-            return await res.json();
+            return errData;
         },
         async createTicket(ticketData) {
             const res = await fetch(BASE_URL + '/api/tickets/create', {
@@ -202,11 +215,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 handleSessionExpiry();
                 throw new Error("Session expired");
             }
+            const errData = await this.safeParse(res);
             if (!res.ok) {
-                const errData = await res.json();
                 throw new Error(errData.error || "Failed to log operations ticket");
             }
-            return await res.json();
+            return errData;
         },
         async getBsnlTickets(status = '', search = '') {
             const query = new URLSearchParams({ status, search });
@@ -216,7 +229,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 throw new Error("Session expired");
             }
             if (!res.ok) throw new Error("Failed to fetch BSNL Online tickets");
-            return await res.json();
+            return await this.safeParse(res);
         },
         async resolveBsnlTicket(requestNo) {
             const res = await fetch(BASE_URL + `/api/bsnl-tickets/${requestNo}/resolve`, {
@@ -228,11 +241,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 handleSessionExpiry();
                 throw new Error("Session expired");
             }
+            const errData = await this.safeParse(res);
             if (!res.ok) {
-                const errData = await res.json();
                 throw new Error(errData.error || "Failed to resolve BSNL ticket");
             }
-            return await res.json();
+            return errData;
         }
     };
 
