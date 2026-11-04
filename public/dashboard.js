@@ -824,9 +824,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
         state.bsnlFaults.forEach(ticket => {
             const card = document.createElement('div');
-            card.className = `metric-card glass-card ticket-card ${ticket.status.toLowerCase()}-status`;
+            // effective_status = portal_status if set (resolved via ops portal/WhatsApp reaction), else DSCM status
+            const displayStatus = (ticket.effective_status || ticket.status || 'OPEN').toUpperCase();
+            const isResolved = ['RESOLVED', 'COMPLETED', 'ARCHIVED'].includes(displayStatus);
+            card.className = `metric-card glass-card ticket-card ${displayStatus.toLowerCase()}-status`;
             
-            const isResolved = ['RESOLVED', 'COMPLETED', 'ARCHIVED'].includes(ticket.status.toUpperCase());
+            const resolvedByInfo = (ticket.portal_status && isResolved)
+                ? `<div class="detail-row"><span class="detail-icon">✅</span><span class="detail-content"><strong>Resolved by:</strong> ${ticket.portal_resolved_by || 'Operations Portal'}${ticket.portal_resolved_at ? ' on ' + formatDate(ticket.portal_resolved_at) : ''}</span></div>`
+                : '';
+            const dscmStatusNote = (ticket.portal_status && ticket.status !== ticket.portal_status)
+                ? `<div class="detail-row"><span class="detail-icon">🔗</span><span class="detail-content"><strong>BSNL DSCM Status:</strong> ${ticket.status}</span></div>`
+                : '';
             
             card.innerHTML = `
                 <div class="card-top">
@@ -834,7 +842,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         <span class="ticket-id">PORTAL #${ticket.request_no}</span>
                         <span class="ticket-date">${formatDate(ticket.create_date)}</span>
                     </div>
-                    <span class="status-tag ${ticket.status.toLowerCase()}">${ticket.status}</span>
+                    <span class="status-tag ${displayStatus.toLowerCase()}">${displayStatus}</span>
                 </div>
                 <div class="customer-name-block">
                     <h4>${ticket.customer_name}</h4>
@@ -853,9 +861,11 @@ document.addEventListener('DOMContentLoaded', () => {
                         <span class="detail-icon">👮</span>
                         <span class="detail-content"><strong>Agent:</strong> ${ticket.handler_name || 'N/A'}</span>
                     </div>
+                    ${resolvedByInfo}
+                    ${dscmStatusNote}
                 </div>
                 <div class="card-actions">
-                    ${!isResolved ? `<button class="btn-resolve" data-resolve-bsnl-id="${ticket.request_no}">Mark Resolved</button>` : `<span class="emerald-text" style="font-size:0.85rem; font-weight:700; color:var(--success);">🟢 RESOLVED</span>`}
+                    ${!isResolved ? `<button class="btn-resolve" data-resolve-bsnl-id="${ticket.request_no}">Mark Resolved</button>` : `<span class="emerald-text" style="font-size:0.85rem; font-weight:700; color:var(--success);">🟢 RESOLVED (Portal)</span>`}
                 </div>
             `;
             elements.bsnlFaultsContainer.appendChild(card);
