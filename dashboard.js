@@ -824,9 +824,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
         state.bsnlFaults.forEach(ticket => {
             const card = document.createElement('div');
-            card.className = `metric-card glass-card ticket-card ${ticket.status.toLowerCase()}-status`;
+            const rawStatus = (ticket.effective_status || ticket.portal_status || ticket.status || 'OPEN').toUpperCase();
+            const isResolved = ['RESOLVED', 'COMPLETED', 'ARCHIVED'].includes(rawStatus) ||
+                               ['RESOLVED', 'COMPLETED', 'ARCHIVED'].includes((ticket.portal_status || '').toUpperCase()) ||
+                               ['RESOLVED', 'COMPLETED', 'ARCHIVED'].includes((ticket.status || '').toUpperCase());
+            const displayStatus = isResolved ? 'RESOLVED' : rawStatus;
+            const statusClass = displayStatus.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+            card.className = `metric-card glass-card ticket-card ${statusClass}-status`;
             
-            const isResolved = ['RESOLVED', 'COMPLETED', 'ARCHIVED'].includes(ticket.status.toUpperCase());
+            const resolvedByInfo = isResolved
+                ? `<div class="detail-row"><span class="detail-icon">✅</span><span class="detail-content"><strong>Resolved:</strong> ${ticket.portal_resolved_by || 'Operations Portal'}${ticket.portal_resolved_at ? ' on ' + formatDate(ticket.portal_resolved_at) : ''}</span></div>`
+                : '';
             
             card.innerHTML = `
                 <div class="card-top">
@@ -834,7 +842,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         <span class="ticket-id">PORTAL #${ticket.request_no}</span>
                         <span class="ticket-date">${formatDate(ticket.create_date)}</span>
                     </div>
-                    <span class="status-tag ${ticket.status.toLowerCase()}">${ticket.status}</span>
+                    <span class="status-tag ${statusClass}">${displayStatus}</span>
                 </div>
                 <div class="customer-name-block">
                     <h4>${ticket.customer_name}</h4>
@@ -853,6 +861,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         <span class="detail-icon">👮</span>
                         <span class="detail-content"><strong>Agent:</strong> ${ticket.handler_name || 'N/A'}</span>
                     </div>
+                    ${resolvedByInfo}
                 </div>
                 <div class="card-actions">
                     ${!isResolved ? `<button class="btn-resolve" data-resolve-bsnl-id="${ticket.request_no}">Mark Resolved</button>` : `<span class="emerald-text" style="font-size:0.85rem; font-weight:700; color:var(--success);">🟢 RESOLVED</span>`}
